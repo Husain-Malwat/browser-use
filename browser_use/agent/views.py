@@ -66,6 +66,7 @@ class AgentSettings(BaseModel):
 	include_tool_call_examples: bool = False
 	llm_timeout: int = 60  # Timeout in seconds for LLM calls
 	step_timeout: int = 180  # Timeout in seconds for each step
+	save_llm_interactions_path: str | Path | None = None  # If set, saves all LLM interactions to this file
 
 
 class AgentState(BaseModel):

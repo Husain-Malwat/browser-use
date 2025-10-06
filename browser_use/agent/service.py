@@ -219,11 +219,15 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 		# Initialize available file paths as direct attribute
 		self.available_file_paths = available_file_paths
+        
+        # ==========================================================
+        # ==========================================================
 		# Initialize LLM interaction logging
 		self.llm_log_file = Path("LLM_proposed_actions.json")
         
 		self.llm_interactions = []
-
+        # ==========================================================
+        # ==========================================================
 
 		# Create instance-specific logger
 		self._logger = logging.getLogger(f'browser_use.Agent[{self.task_id[-3:]}]')
@@ -463,6 +467,7 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			self.settings.save_conversation_path = Path(self.settings.save_conversation_path).expanduser().resolve()
 			self.logger.info(f'💬 Saving conversation to {_log_pretty_path(self.settings.save_conversation_path)}')
 
+		self.settings.save_llm_interactions_path = "LLM_proposed_actions.json"  # Set to a file path (e.g., "llm_interactions.json") to enable saving
 		# Initialize download tracking
 		assert self.browser_session is not None, 'BrowserSession is not set up'
 		self.has_downloads_path = self.browser_session.browser_profile.downloads_path is not None
@@ -992,7 +997,8 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 	@observe_debug(ignore_input=True, ignore_output=True, name='get_model_output')
 	async def get_model_output(self, input_messages: list[BaseMessage]) -> AgentOutput:
 		"""Get next action from LLM based on current state"""
-
+        # ==========================================================
+        # ==========================================================
 		prompt_data = {
 			"step": self.state.n_steps + 1,
 			"timestamp": time.time(),
@@ -1024,9 +1030,14 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 					"type": type(msg).__name__,
 					"content": str(msg)
 				})
+        # ==========================================================
+        # ==========================================================
+        
 		try:
 			response = await self.llm.ainvoke(input_messages, output_format=self.AgentOutput)
-			# ADD THIS CODE HERE - RIGHT AFTER GETTING THE RESPONSE:
+   
+            # ==========================================================
+            # ==========================================================
 			# Log the raw LLM response
 			llm_interaction = {
 				"step": self.state.n_steps + 1,
@@ -1042,7 +1053,8 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 			self.llm_interactions.append(llm_interaction)
 			self._save_llm_interactions()
-			
+			# ==========================================================
+            # ==========================================================
 			
 			parsed = response.completion
 
@@ -1775,15 +1787,18 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			self.DoneAgentOutput = AgentOutput.type_with_custom_actions(self.DoneActionModel)
 		else:
 			self.DoneAgentOutput = AgentOutput.type_with_custom_actions_no_thinking(self.DoneActionModel)
-
-def _save_llm_interactions(self):
-    """Save LLM interactions to JSON file"""
-    try:
-        with open(self.llm_log_file, 'w', encoding='utf-8') as f:
-            json.dump({
-                "agent_id": self.id,
-                "task": self.task,
-                "interactions": self.llm_interactions
-            }, f, indent=2, default=str)
-    except Exception as e:
-        self.logger.error(f"Failed to save LLM interactions: {e}")
+    # ==========================================================
+    # ==========================================================
+	def _save_llm_interactions(self):
+		"""Save the LLM interactions to a JSON file if configured"""
+		if self.settings.save_llm_interactions_path:
+			try:
+				path = Path(self.settings.save_llm_interactions_path)
+				path.parent.mkdir(parents=True, exist_ok=True)
+				with path.open('w', encoding='utf-8') as f:
+					json.dump(self.llm_interactions, f, indent=2)
+				self.logger.debug(f'Saved LLM interactions to {path}')
+			except Exception as e:
+				self.logger.error(f'Failed to save LLM interactions: {e}')
+    # ==========================================================
+    # ==========================================================
