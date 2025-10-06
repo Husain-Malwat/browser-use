@@ -219,6 +219,11 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 
 		# Initialize available file paths as direct attribute
 		self.available_file_paths = available_file_paths
+		# Initialize LLM interaction logging
+		self.llm_log_file = Path("LLM_proposed_actions.json")
+        
+		self.llm_interactions = []
+
 
 		# Create instance-specific logger
 		self._logger = logging.getLogger(f'browser_use.Agent[{self.task_id[-3:]}]')
@@ -988,9 +993,58 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 	async def get_model_output(self, input_messages: list[BaseMessage]) -> AgentOutput:
 		"""Get next action from LLM based on current state"""
 
+		prompt_data = {
+            "step": self.state.n_steps + 1,
+            "timestamp": time.time(),
+            "prompt_messages": []
+        }
+        # Convert input messages to loggable format
+		for msg in input_messages:
+			if hasattr(msg, 'content'):
+				if isinstance(msg.content, str):
+					prompt_data["prompt_messages"].append({
+                        "type": type(msg).__name__,
+                        "content": msg.content
+                    })
+				elif isinstance(msg.content, list):
+					content_parts = []
+					for part in msg.content:
+						if hasattr(part, 'text'):
+						    content_parts.append({"type": "text", "content": part.text})
+						elif hasattr(part, 'image_url'):
+						    content_parts.append({"type": "image", "content": "[IMAGE_DATA]"})
+						else:
+						    content_parts.append({"type": "unknown", "content": str(part)})
+                    prompt_data["prompt_messages"].append({
+                        "type": type(msg).__name__,
+                        "content": content_parts
+                    })
+            else:
+                prompt_data["prompt_messages"].append({
+                    "type": type(msg).__name__,
+                    "content": str(msg)
+                })
 		try:
 			response = await self.llm.ainvoke(input_messages, output_format=self.AgentOutput)
-			parsed = response.completion
+			# ADD THIS CODE HERE - RIGHT AFTER GETTING THE RESPONSE:
+            # Log the raw LLM response
+            llm_interaction = {
+                "step": self.state.n_steps + 1,
+                "timestamp": time.time(),
+                "prompt": prompt_data,
+                "raw_llm_response": {
+                    "completion": str(response.completion) if hasattr(response, 'completion') else str(response),
+                    "raw_response": getattr(response, 'raw_response', None),
+                    "model_used": self.llm.model,
+                    "provider": self.llm.provider
+                }
+            }
+
+            self.llm_interactions.append(llm_interaction)
+            self._save_llm_interactions()
+            
+            
+            parsed = response.completion
 
 			# cut the number of actions to max_actions_per_step if needed
 			if len(parsed.action) > self.settings.max_actions_per_step:
@@ -1721,3 +1775,15 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 			self.DoneAgentOutput = AgentOutput.type_with_custom_actions(self.DoneActionModel)
 		else:
 			self.DoneAgentOutput = AgentOutput.type_with_custom_actions_no_thinking(self.DoneActionModel)
+
+def _save_llm_interactions(self):
+    """Save LLM interactions to JSON file"""
+    try:
+        with open(self.llm_log_file, 'w', encoding='utf-8') as f:
+            json.dump({
+                "agent_id": self.id,
+                "task": self.task,
+                "interactions": self.llm_interactions
+            }, f, indent=2, default=str)
+    except Exception as e:
+        self.logger.error(f"Failed to save LLM interactions: {e}")
