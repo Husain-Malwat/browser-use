@@ -994,57 +994,57 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 		"""Get next action from LLM based on current state"""
 
 		prompt_data = {
-            "step": self.state.n_steps + 1,
-            "timestamp": time.time(),
-            "prompt_messages": []
-        }
-        # Convert input messages to loggable format
+			"step": self.state.n_steps + 1,
+			"timestamp": time.time(),
+			"prompt_messages": []
+		}
+		# Convert input messages to loggable format
 		for msg in input_messages:
 			if hasattr(msg, 'content'):
 				if isinstance(msg.content, str):
 					prompt_data["prompt_messages"].append({
-                        "type": type(msg).__name__,
-                        "content": msg.content
-                    })
+						"type": type(msg).__name__,
+						"content": msg.content
+					})
 				elif isinstance(msg.content, list):
 					content_parts = []
 					for part in msg.content:
 						if hasattr(part, 'text'):
-						    content_parts.append({"type": "text", "content": part.text})
+							content_parts.append({"type": "text", "content": part.text})
 						elif hasattr(part, 'image_url'):
-						    content_parts.append({"type": "image", "content": "[IMAGE_DATA]"})
+							content_parts.append({"type": "image", "content": "[IMAGE_DATA]"})
 						else:
-						    content_parts.append({"type": "unknown", "content": str(part)})
-                    prompt_data["prompt_messages"].append({
-                        "type": type(msg).__name__,
-                        "content": content_parts
-                    })
-            else:
-                prompt_data["prompt_messages"].append({
-                    "type": type(msg).__name__,
-                    "content": str(msg)
-                })
+							content_parts.append({"type": "unknown", "content": str(part)})
+					prompt_data["prompt_messages"].append({
+						"type": type(msg).__name__,
+						"content": content_parts
+					})
+			else:
+				prompt_data["prompt_messages"].append({
+					"type": type(msg).__name__,
+					"content": str(msg)
+				})
 		try:
 			response = await self.llm.ainvoke(input_messages, output_format=self.AgentOutput)
 			# ADD THIS CODE HERE - RIGHT AFTER GETTING THE RESPONSE:
-            # Log the raw LLM response
-            llm_interaction = {
-                "step": self.state.n_steps + 1,
-                "timestamp": time.time(),
-                "prompt": prompt_data,
-                "raw_llm_response": {
-                    "completion": str(response.completion) if hasattr(response, 'completion') else str(response),
-                    "raw_response": getattr(response, 'raw_response', None),
-                    "model_used": self.llm.model,
-                    "provider": self.llm.provider
-                }
-            }
+			# Log the raw LLM response
+			llm_interaction = {
+				"step": self.state.n_steps + 1,
+				"timestamp": time.time(),
+				"prompt": prompt_data,
+				"raw_llm_response": {
+					"completion": str(response.completion) if hasattr(response, 'completion') else str(response),
+					"raw_response": getattr(response, 'raw_response', None),
+					"model_used": self.llm.model,
+					"provider": self.llm.provider
+				}
+			}
 
-            self.llm_interactions.append(llm_interaction)
-            self._save_llm_interactions()
-            
-            
-            parsed = response.completion
+			self.llm_interactions.append(llm_interaction)
+			self._save_llm_interactions()
+			
+			
+			parsed = response.completion
 
 			# cut the number of actions to max_actions_per_step if needed
 			if len(parsed.action) > self.settings.max_actions_per_step:
